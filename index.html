@@ -1,3 +1,59 @@
+// --- Firebase SDKs Import ---
+// NOTE: For a real app, use the module imports, as shown below.
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+// --- Firebase Configuration ---
+// IMPORTANT: नीचे दिए गए placeholders को अपनी असली Firebase Details से बदलें
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY_HERE", 
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com", // उदाहरण: side-love-3a293.firebaseapp.com
+  projectId: "YOUR_PROJECT_ID", // उदाहरण: side-love-3a293
+  storageBucket: "YOUR_STORAGE_BUCKET_HERE.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID_HERE",
+  appId: "YOUR_APP_ID_HERE"
+  // measurementId: "G-GFL94RCDVW" // इसे वैकल्पिक (Optional) रूप से छोड़ सकते हैं
+};
+
+let app, db, auth;
+let currentUserId = null;
+let currentUserData = null;
+let currentView = 'feed'; 
+let allUsersCache = []; // Real-time users will be fetched from Firestore
+let roomsCache = []; // Real-time rooms will be fetched from Firestore
+
+// --- Initialization Function (App Start) ---
+async function initializeAppAndAuth() {
+    try {
+        // Firebase Services शुरू करें
+        app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+
+        // Auth State Listener
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUserId = user.uid;
+                await loadUserProfile(); // प्रोफाइल Firestore से लोड होगी
+                setupRealtimeListeners(); // Firestore के लिए लिसनर सेट करें
+                renderApp(); // App UI रेंडर करें
+            } else {
+                currentUserId = null;
+                // अगर लॉग आउट है, तो AuthView दिखाएँ
+                qs('#app-content').classList.add('hidden');
+                qs('#auth-view').classList.remove('hidden');
+                renderAuthView('login');
+            }
+        });
+        
+    } catch (error) {
+        console.error("Firebase Initialization Failed:", error);
+        alert("ऐप शुरू करने में समस्या हुई। कृपया कॉन्फ़िगरेशन की जाँच करें।"); // Fallback alert
+    }
+}
+// बाकी सारा कोड (जैसे handleLogin, renderFeedView, आदि) इसके नीचे जारी रहेगा।
+
 <!DOCTYPE html>
 <html lang="hi">
 <head>
