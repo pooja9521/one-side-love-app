@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1 SIDE L💗VE😘 - Local Storage Demo</title>
+    <!-- Tailwind CSS -->
+    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
+    <!-- Inter Font -->
+    <link href="[https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap)" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="[https://unpkg.com/lucide@latest](https://unpkg.com/lucide@latest)"></script>
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f7;
+            touch-action: pan-y;
+        }
+        #app-container {
+            max-width: 420px;
+            min-height: 100vh;
+            margin: 0 auto;
+            background-color: white;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .nav-icon {
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .nav-icon.active {
+            color: #ff3864; 
+        }
+        .scroll-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding-bottom: 64px;
+            -webkit-overflow-scrolling: touch;
+        }
+        .chat-bubble {
+            max-width: 80%;
+            border-radius: 1.5rem;
+            padding: 0.6rem 1rem;
+            margin-bottom: 0.5rem;
+            line-height: 1.4;
+        }
+        .my-message {
+            margin-left: auto;
+            background-color: var(--primary-color, #ff3864); 
+            color: white;
+            border-bottom-right-radius: 0.5rem;
+        }
+        .other-message {
+            margin-right: auto;
+            background-color: #e5e7eb;
+            color: #1f2937;
+            border-bottom-left-radius: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app-container" class="relative">
+    <div id="loading-screen" class="absolute inset-0 bg-pink-100 flex flex-col justify-center items-center z-50 transition-opacity duration-300 hidden">
+        <div class="animate-spin rounded-full h-12 w-12 border-4 border-t-4 border-pink-500 border-t-white"></div>
+        <p class="mt-4 text-pink-700 font-semibold">ऐप लोड हो रहा है...</p>
+    </div>
+
+    <div id="auth-view" class="p-6 pt-16 flex flex-col items-center justify-center min-h-screen hidden">
+    </div>
+
+    <div id="app-content" class="flex-grow flex flex-col hidden">
+        <header id="header-container" class="sticky top-0 bg-white border-b border-gray-100 shadow-sm p-4 flex justify-between items-center z-10">
+            <h1 class="text-xl font-bold text-gray-800">1 SIDE L💗VE😘</h1>
+            <div id="header-actions"></div>
+        </header>
+
+        <div id="main-view" class="scroll-container flex-grow"></div>
+
+        <footer id="footer-nav" class="sticky bottom-0 bg-white border-t border-gray-100 flex justify-around p-3 z-20"></footer>
+    </div>
+    
+    <div id="modal-container" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center">
+        <div id="modal-content" class="bg-white rounded-xl shadow-2xl p-4 w-11/12 max-w-md max-h-[80%] overflow-y-auto"></div>
+    </div>
+</div>
+
+<script>
+    let currentUserId = localStorage.getItem('currentUserId');
+    let currentUserData = null;
+    let currentView = 'feed';
+    let allUsersCache = JSON.parse(localStorage.getItem('allUsers')) || [];
+
+    const qs = (selector) => document.querySelector(selector);
+    const qsa = (selector) => document.querySelectorAll(selector);
+
+    const getCurrentUserProfile = () => {
+        if (!currentUserId) return null;
+        return allUsersCache.find(u => u.uid === currentUserId);
+    };
+
+    const saveAllUsers = (newData) => {
+        allUsersCache = newData;
+        localStorage.setItem('allUsers', JSON.stringify(allUsersCache));
+        currentUserData = getCurrentUserProfile();
+    };
+    
+    const updateCurrentUserProfile = (updates) => {
+        const newData = allUsersCache.map(u => 
+            u.uid === currentUserId ? { ...u, ...updates } : u
+        );
+        saveAllUsers(newData);
+    };
+
+    const getAvatarUrl = (photoURL) => {
+        return photoURL || '[https://placehold.co/100x100/fecaca/9f1239?text=Love](https://placehold.co/100x100/fecaca/9f1239?text=Love)';
+    }
+
+    const showView = (viewName) => {
+        currentView = viewName;
+        renderApp();
+    };
+
+    function calculateLevelAndCrown(xp) {
+        let level = 1;
+        let crown = 'No Crown';
+
+        if (xp >= 100) { level = 5; crown = 'Diamond Crown 💎'; }
+        else if (xp >= 60) { level = 4; crown = 'Gold Crown 🥇'; }
+        else if (xp >= 30) { level = 3; crown = 'Silver Crown 🥈'; }
+        else if (xp >= 10) { level = 2; crown = 'Bronze Crown 🥉'; }
+
+        return { level, crown };
+    }
+
+    function clearLocalStorageAndReset() {
+        localStorage.removeItem('currentUserId');
+        localStorage.removeItem('allUsers');
+        localStorage.removeItem('posts');
+        localStorage.removeItem('rooms');
+        localStorage.removeItem('messages-room_1');
+        localStorage.removeItem('messages-room_2');
+        currentUserId = null;
+        allUsersCache = [];
+        currentUserData = null;
+        initializeData(true);
+        renderApp();
+        showCustomAlert('सफलता', 'डेटा रीसेट हुआ! कृपया फिर से लॉग इन करें।', 'success');
+    }
+
+    function initializeData(force = false) {
+        if (allUsersCache.length === 0 || force) {
+            allUsersCache = [
+                { uid: 'user_1', username: 'Priya', email: 'priya@app.com', password: 'password', bio: 'Looking for 1 SIDE L💗VE!', photoURL: '', isPremium: true, isPublic: true, xp: 70, followers: ['user_2'], following: [], chatTheme: '#ff3864', chatBackground: '', createdAt: Date.now() },
+                { uid: 'user_2', username: 'Rahul', email: 'rahul@app.com', password: 'password', bio: 'Coffee lover.', photoURL: '[https://placehold.co/100x100/808080/ffffff?text=R](https://placehold.co/100x100/808080/ffffff?text=R)', isPremium: false, isPublic: true, xp: 20, followers: ['user_1'], following: ['user_1'], chatTheme: '#ff3864', chatBackground: '', createdAt: Date.now() },
+                { uid: 'user_3', username: 'Anjali', email: 'anjali@app.com', password: 'password', bio: 'My account is private.', photoURL: '[https://placehold.co/100x100/fecaca/9f1239?text=A](https://placehold.co/100x100/fecaca/9f1239?text=A)', isPremium: false, isPublic: false, xp: 5, followers: [], following: [], chatTheme: '#ff3864', chatBackground: '', createdAt: Date.now() },
+            ];
+            localStorage.setItem('allUsers', JSON.stringify(allUsersCache));
+            
+            localStorage.setItem('posts', JSON.stringify([
+                { id: 'post_1', userId: 'user_1', caption: 'Today was a beautiful day. ☀️', photoURL: '[https://placehold.co/400x200/ffb8c4/9f1239?text=Happy+Story](https://placehold.co/400x200/ffb8c4/9f1239?text=Happy+Story)', likes: ['user_2'], comments: [], shares: 1, isPublic: true, createdAt: Date.now() - 50000 },
+                { id: 'post_2', userId: 'user_2', caption: 'Chilling at home. Anyone up for a chat?', photoURL: '', likes: [], comments: [], shares: 0, isPublic: true, createdAt: Date.now() - 30000 },
+                { id: 'post_3', userId: 'user_3', caption: 'Secret thoughts only for followers.', photoURL: '[https://placehold.co/400x200/a3e635/1f2937?text=Private+Post](https://placehold.co/400x200/a3e635/1f2937?text=Private+Post)', likes: [], comments: [], shares: 0, isPublic: false, createdAt: Date.now() - 10000 },
+            ]));
+            
+            localStorage.setItem('rooms', JSON.stringify([
+                { id: 'room_1', name: "पब्लिक लवर्स चैट", isPremium: false, users: ['user_1', 'user_2'] },
+                { id: 'room_2', name: "प्रीमियम दिल की बातें", isPremium: true, users: ['user_1'] },
+            ]));
+
+            localStorage.setItem('messages-room_1', JSON.stringify([
+                { id: 'msg1', userId: 'user_1', text: 'Hi everyone!', timestamp: Date.now() - 10000, isDeleted: false },
+                { id: 'msg2', userId: 'user_2', text: 'Hello Priya!', timestamp: Date.now() - 8000, isDeleted: false },
+            ]));
+
+            localStorage.setItem('messages-room_2', JSON.stringify([
+                { id: 'msg3', userId: 'user_1', text: 'Welcome to the premium room! 👑', timestamp: Date.now() - 5000, isDeleted: false },
+            ]));
+        }
+        
+        if (currentUserId) {
+            currentUserData = getCurrentUserProfile();
+        }
+    }
+
+    function handleLogin(email, password) {
+        const user = allUsersCache.find(u => u.email === email && u.password === password);
+        
+        if (user) {
+            currentUserId = user.uid;
+            localStorage.setItem('currentUserId', currentUserId);
+            currentUserData = user;
+            showCustomAlert('सफलता', `${user.username} लॉग इन हुए।`, 'success');
+            renderApp();
+        } else {
+            qs('#auth-error').textContent = `गलत Gmail ID या पासवर्ड।`;
+            qs('#auth-error').classList.remove('hidden');
+        }
+    }
+
+    function handleSignup(email, password, username, mobile) {
+        if (allUsersCache.find(u => u.email === email)) {
+            qs('#auth-error').textContent = `यह Gmail ID पहले से मौजूद है।`;
+            qs('#auth-error').classList.remove('hidden');
+            return;
+        }
+
+        promptMobileVerification().then(() => {
+            const newUser = {
+                uid: `user_${Date.now()}`,
+                username,
+                email,
+                password,
+                mobile,
+                bio: 'Hey there! I am new to 1 SIDE L💗VE😘.',
+                photoURL: '',
+                isPremium: false,
+                isPublic: true,
+                xp: 0,
+                followers: [],
+                following: [],
+                chatTheme: '#ff3864',
+                chatBackground: '',
+                createdAt: Date.now()
+            };
+            allUsersCache.push(newUser);
+            saveAllUsers(allUsersCache);
+            currentUserId = newUser.uid;
+            localStorage.setItem('currentUserId', currentUserId);
+            currentUserData = newUser;
+            showCustomAlert('सफलता', `साइन अप सफल!`, 'success');
+            renderApp();
+        });
+    }
+
+    function promptMobileVerification() {
+        return new Promise((resolve) => {
+            const modal = createModal('मोबाइल वेरिफिकेशन', `
+                <p class="mb-4 text-gray-600">आपके मोबाइल नंबर पर 4 अंकों का कोड भेजा गया है। (सिमुलेशन कोड: <span class="font-bold text-pink-600">0123</span>)</p>
+                <input type="text" id="verification-code" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 text-center text-lg" maxlength="4" placeholder="XXXX">
+                <p id="code-error" class="text-red-500 text-sm mt-2 hidden">गलत कोड।</p>
+                <button id="verify-btn" class="w-full mt-4 py-2 px-4 rounded-lg shadow-sm text-sm font-medium text-white bg-pink-600 hover:bg-pink-700">वेरीफाई करें</button>
+            `);
+
+            qs('#verify-btn').addEventListener('click', () => {
+                const code = qs('#verification-code').value;
+                if (code === '0123') {
+                    closeModal();
+                    resolve();
+                } else {
+                    qs('#code-error').classList.remove('hidden');
+                }
+            });
+        });
+    }
+
+    function handleLogout() {
+        currentUserId = null;
+        localStorage.removeItem('currentUserId');
+        currentUserData = null;
+        renderApp();
+    }
+
+    const renderAuthView = (mode) => {
+        const container = qs('#auth-view');
+        container.classList.remove('hidden');
+        qs('#app-content').classList.add('hidden');
+        
+        container.innerHTML = `
+            <div class="w-full max-w-xs p-6 bg-white rounded-xl shadow-lg">
+                <h2 class="text-3xl font-extrabold text-center text-pink-600 mb-6">
+                    ${mode === 'login' ? 'लॉग इन करें' : 'साइन अप करें'}
+                </h2>
+                <div class="p-3 bg-yellow-50 text-yellow-800 rounded-lg text-sm mb-4">
+                    <p class="font-bold">🔑 डिफ़ॉल्ट लॉगिन:</p>
+                    <p>Gmail ID: <span class="font-mono">priya@app.com</span></p>
+                    <p>पासवर्ड: <span class="font-mono">password</span></p>
+                </div>
+                <form id="${mode}-form">
+                    ${mode === 'signup' ? `
+                        <div class="input-group">
+                            <label class="block text-sm font-medium text-gray-700" for="username">यूज़रनेम</label>
+                            <input type="text" id="username" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500" required>
+                        </div>
+                        <div class="input-group">
+                            <label class="block text-sm font-medium text-gray-700" for="mobile">मोबाइल नंबर</label>
+                            <input type="text" id="mobile" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500" required>
+                        </div>
+                    ` : ''}
+                    <div class="input-group">
+                        <label class="block text-sm font-medium text-gray-700" for="email">Gmail ID</label>
+                        <input type="email" id="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500" required value="${mode === 'login' ? 'priya@app.com' : ''}">
+                    </div>
+                    <div class="input-group">
+                        <label class="block text-sm font-medium text-gray-700" for="password">पासवर्ड</label>
+                        <input type="password" id="password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500" required value="${mode === 'login' ? 'password' : ''}">
+                    </div>
+                    <p id="auth-error" class="text-red-500 text-sm mt-2 hidden"></p>
+                    <button type="submit" class="w-full mt-4 py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500">
+                        ${mode === 'login' ? 'लॉग इन' : 'आगे बढ़ें'}
+                    </button>
+                </form>
+                <button id="switch-auth-mode" class="w-full mt-4 text-sm text-pink-600 hover:text-pink-800">
+                    ${mode === 'login' ? 'नया अकाउंट बनाएं' : 'पहले से ही अकाउंट है? लॉग इन करें'}
+                </button>
+                <button id="reset-data-btn" class="w-full mt-2 text-xs text-gray-500 hover:text-red-500">
+                    डेटा रीसेट करें (Local Storage)
+                </button>
+            </div>
+        `;
+
+        qs(`#${mode}-form`).addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = qs('#email').value;
+            const password = qs('#password').value;
+            const errorElement = qs('#auth-error');
+            errorElement.classList.add('hidden');
+
+            if (mode === 'signup') {
+                handleSignup(email, password, qs('#username').value, qs('#mobile').value);
+            } else {
+                handleLogin(email, password);
+            }
+        });
+
+        qs('#switch-auth-mode').addEventListener('click', () => {
+            renderAuthView(mode === 'login' ? 'signup' : 'login');
+        });
+        
+        qs('#reset-data-btn').addEventListener('click', () => {
+             if (confirm('क्या आप सचमुच सारा लोकल डेटा रीसेट करना चाहते हैं? इससे सभी यूज़र और पोस्ट मिट जाएंगे।')) {
+                 clearLocalStorageAndReset();
+             }
+        });
+    }
+
+    const renderFeedView = () => {
+        const posts = JSON.parse(localStorage.getItem('posts')) || [];
+        const mainView = qs('#main-view');
+        mainView.innerHTML = `<div class="p-4 space-y-6" id="posts-list"></div>`;
+
+        qs('#header-actions').innerHTML = `
+            <button id="open-post-modal" class="p-2 text-pink-600 hover:text-pink-800 rounded-full">
+                ${lucide.createAIcon('PlusSquare', 'w-6 h-6').toSvg()}
+            </button>
+        `;
+        qs('#open-post-modal').addEventListener('click', renderPostModal);
+
+        const postsList = qs('#posts-list');
+        if (posts.length === 0) {
+            postsList.innerHTML = '<p class="text-center text-gray-500 p-8">अभी कोई स्टोरी नहीं है। एक पोस्ट करें!</p>';
+            return;
+        }
+
+        const sortedPosts = posts.sort((a, b) => b.createdAt - a.createdAt);
+
+        sortedPosts.forEach(post => {
+            const postUser = allUsersCache.find(u => u.uid === post.userId);
+            if (!postUser) return;
+
+            const isVisible = postUser.isPublic || (postUser.uid === currentUserId) || currentUserData.following.includes(postUser.uid);
+            
+            if (isVisible) {
+                const postElement = document.createElement('div');
+                postElement.className = 'bg-white rounded-xl shadow-md overflow-hidden';
+                
+                const { crown } = calculateLevelAndCrown(postUser.xp);
+                const userLink = `<div class="flex items-center space-x-3 p-3 border-b">
+                    <img src="${getAvatarUrl(postUser.photoURL)}" onerror="this.src='[https://placehold.co/50x50/fecaca/9f1239?text=Love](https://placehold.co/50x50/fecaca/9f1239?text=Love)';" class="w-10 h-10 rounded-full object-cover">
+                    <div>
+                        <p class="font-semibold text-gray-800">${postUser.username} ${crown !== 'No Crown' ? `<span class="text-xs text-yellow-500">${crown}</span>` : ''}</p>
+                        <p class="text-xs text-gray-500">${new Date(post.createdAt).toLocaleDateString('hi-IN')}</p>
+                    </div>
+                </div>`;
+
+                const interactionBar = `<div class="p-3 flex items-center justify-between border-t">
+                    <div class="flex space-x-4">
+                        <button class="flex items-center space-x-1 text-gray-600 hover:text-pink-600 transition" data-action="like" data-post-id="${post.id}">
+                            ${post.likes?.includes(currentUserId) ? lucide.createAIcon('Heart', 'w-5 h-5 fill-pink-600 stroke-pink-600').toSvg() : lucide.createAIcon('Heart', 'w-5 h-5').toSvg()}
+                            <span class="text-sm">${post.likes?.length || 0}</span>
+                        </button>
+                        <button class="flex items-center space-x-1 text-gray-600 hover:text-pink-600 transition" data-action="comment" data-post-id="${post.id}">
+                            ${lucide.createAIcon('MessageSquare', 'w-5 h-5').toSvg()}
+                            <span class="text-sm">${post.comments?.length || 0}</span>
+                        </button>
+                        <button class="flex items-center space-x-1 text-gray-600 hover:text-pink-600 transition" data-action="share" data-post-id="${post.id}">
+                            ${lucide.createAIcon('Share2', 'w-5 h-5').toSvg()}
+                            <span class="text-sm">${post.shares || 0}</span>
+                        </button>
+                    </div>
+                </div>`;
+
+                postElement.innerHTML = `
+                    ${userL
